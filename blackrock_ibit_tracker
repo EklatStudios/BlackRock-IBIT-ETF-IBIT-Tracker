@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BlackRock IBIT ETF Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+        .nav-btn {
+            @apply px-4 py-2 rounded-lg text-sm font-medium transition-colors;
+        }
+        .nav-btn-active {
+            @apply bg-blue-600 text-white shadow;
+        }
+        .nav-btn-inactive {
+            @apply text-gray-600 hover:bg-gray-100;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <!-- Chosen Palette: Warm Neutrals (BG: gray-50, Text: gray-800, Accents: blue-600, green-600) -->
+    <!-- Application Structure Plan: Single-page dashboard. Top section: Key summary metrics (total holdings, AUM, cost basis). Middle section: Interactive charts (Holdings/AUM over time, Daily Flows). Bottom section: Raw data table. This structure provides a top-down overview, from high-level summary to visual trends to granular data, which is an intuitive flow for analyzing fund performance. -->
+    <!-- Visualization & Content Choices: 1. Key Metrics: (Info) -> HTML Stat Cards -> (No interaction) -> Quick scannable summary. (HTML/Tailwind). 2. Holdings/AUM Trend: (Change) -> Line Charts -> (Hover tooltips) -> Clear visualization of growth over time. (Chart.js). 3. Daily Flows: (Change) -> Bar Chart -> (Hover tooltips, Button toggle BTC/USD) -> Easy comparison of daily in/outflows. (Chart.js). 4. Data Table: (Organize) -> HTML Table -> (None) -> Access to raw numbers. (HTML/Tailwind). All choices use Canvas-based Chart.js. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+
+        <header class="mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">BlackRock IBIT Bitcoin ETF Daily Report</h1>
+            <p id="lastUpdated" class="text-gray-500 mt-1">Data last successfully updated: DATE_PLACEHOLDER</p>
+        </header>
+
+        <!-- AI CONTENT BLOCK -->
+        <section class="mb-10 bg-white p-6 md:p-8 rounded-xl shadow-lg">
+            <h2 class="text-2xl font-semibold text-blue-700 mb-4">Daily Market Summary: IBIT Activity</h2>
+            <!-- AI will replace content within this paragraph -->
+            <p id="aiContent" class="text-lg text-gray-700 leading-relaxed mb-8">
+                Welcome to the automated daily summary. The script will fetch the latest data, use AI to write a concise article here, and then update the interactive charts below. Check back tomorrow for today's analysis!
+            </p>
+            <!-- /AI CONTENT BLOCK -->
+            
+        </section>
+
+        <section id="keyMetrics" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6 mb-8">
+        </section>
+
+        <main class="bg-white rounded-xl shadow-lg p-4 md:p-6">
+            <nav class="flex flex-wrap gap-2 mb-6 border-b pb-4">
+                <button id="btnHoldings" class="nav-btn nav-btn-active" data-chart="holdings">Holdings</button>
+                <button id="btnAum" class="nav-btn nav-btn-inactive" data-chart="aum">AUM</button>
+                <button id="btnFlow" class="nav-btn nav-btn-inactive" data-chart="flow">Daily Flows</button>
+                <button id="btnTable" class="nav-btn nav-btn-inactive" data-chart="table">Data Table</button>
+            </nav>
+            
+            <div id="chartSection">
+                <p id="chartIntro" class="text-gray-600 mb-4"></p>
+                
+                <div id="holdingsChartContainer" class="chart-container-wrapper">
+                    <div class="chart-container">
+                        <canvas id="holdingsChart"></canvas>
+                    </div>
+                </div>
+
+                <div id="aumChartContainer" class="chart-container-wrapper hidden">
+                    <div class="chart-container">
+                        <canvas id="aumChart"></canvas>
+                    </div>
+                </div>
+
+                <div id="flowChartContainer" class="chart-container-wrapper hidden">
+                    <div class="flex justify-center gap-2 mb-4">
+                        <button id="flowToggleBTC" class="nav-btn nav-btn-active text-xs px-3 py-1">BTC Flow</button>
+                        <button id="flowToggleUSD" class="nav-btn nav-btn-inactive text-xs px-3 py-1">USD Flow</button>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="flowChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tableSection" class="hidden">
+                <p id="tableIntro" class="text-gray-600 mb-4"></p>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">BTC Price</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">BTC Holdings</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">BTC Flow</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">AUM (USD)</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Fund Flow (USD)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dataTableBody" class="bg-white divide-y divide-gray-200">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // <NEW_FUND_DATA_INJECTION>
+        const fundData = [
+            { date: "2025-10-20", price: 60100, holdings: 300100, btcFlow: 500, aum: 18036010000, usdFlow: 30050000 },
+            { date: "2025-10-21", price: 60500, holdings: 300650, btcFlow: 550, aum: 18189325000, usdFlow: 33275000 },
+            { date: "2025-10-22", price: 61200, holdings: 301000, btcFlow: 350, aum: 18421200000, usdFlow: 21420000 },
+            { date: "2025-10-23", price: 61000, holdings: 301400, btcFlow: 400, aum: 18385400000, usdFlow: 24400000 },
+            { date: "2025-10-24", price: 61500, holdings: 301900, btcFlow: 500, aum: 18566850000, usdFlow: 30750000 },
+            { date: "2025-10-27", price: 62000, holdings: 302500, btcFlow: 600, aum: 18755000000, usdFlow: 37200000 },
+            { date: "2025-10-28", price: 61800, holdings: 302800, btcFlow: 300, aum: 18712040000, usdFlow: 18540000 },
+            { date: "2025-10-29", price: 62500, holdings: 303200, btcFlow: 400, aum: 18950000000, usdFlow: 25000000 },
+            { date: "2025-10-30", price: 63000, holdings: 303700, btcFlow: 500, aum: 19133100000, usdFlow: 31500000 },
+            { date: "2025-10-31", price: 62800, holdings: 304000, btcFlow: 300, aum: 19091200000, usdFlow: 18840000 },
+            { date: "2025-11-03", price: 63500, holdings: 304500, btcFlow: 500, aum: 19335750000, usdFlow: 31750000 },
+            { date: "2025-11-04", price: 64000, holdings: 304900, btcFlow: 400, aum: 19513600000, usdFlow: 25600000 },
+            { date: "2025-11-05", price: 64200, holdings: 305100, btcFlow: 200, aum: 19587420000, usdFlow: 12840000 },
+            { date: "2025-11-06", price: 63800, holdings: 305250, btcFlow: 150, aum: 19474950000, usdFlow: 9570000 },
+            { date: "2025-11-07", price: 64100, holdings: 305450, btcFlow: 200, aum: 19579345000, usdFlow: 12820000 },
+            { date: "2025-11-10", price: 63900, holdings: 305550, btcFlow: 100, aum: 19524645000, usdFlow: 6390000 },
+            { date: "2025-11-12", price: 63700, holdings: 305613.5, btcFlow: 63.5, aum: 19467580000, usdFlow: 4045000 }
+        ];
+        // </NEW_FUND_DATA_INJECTION>
+
+        const latestData = fundData[fundData.length - 1];
+        const costBasis = 18700000000;
+        const avgPurchasePrice = 61200;
+        const unrealizedGain = latestData.aum - costBasis;
+        // ... (Rest of JavaScript remains the same)
+
+        const charts = {};
+        let currentChart = 'holdings';
+        let currentFlowType = 'btc';
+
+        const numberFormatter = (value, currency = false) => {
+            const options = currency ? { style: 'currency', currency: 'USD' } : {};
+            options.maximumFractionDigits = 0;
+            options.minimumFractionDigits = 0;
+            return new Intl.NumberFormat('en-US', options).format(value);
+        };
+        
+        const compactNumberFormatter = (value, currency = false) => {
+            const options = currency ? { style: 'currency', currency: 'USD' } : {};
+            options.notation = 'compact';
+            options.compactDisplay = 'short';
+            options.maximumFractionDigits = 2;
+            options.minimumFractionDigits = 0;
+            return new Intl.NumberFormat('en-US', options).format(value);
+        };
+
+        function createKeyMetric(title, value, subtext = null) {
+            let subtextEl = subtext ? `<p class="text-xs text-gray-500">${subtext}</p>` : '';
+            return `
+                <div classclass="bg-white p-4 rounded-lg shadow">
+                    <h3 class="text-sm font-medium text-gray-500 truncate">${title}</h3>
+                    <p class="text-2xl md:text-3xl font-semibold text-gray-900">${value}</p>
+                    ${subtextEl}
+                </div>
+            `;
+        }
+
+        function populateKeyMetrics() {
+            const metricsContainer = document.getElementById('keyMetrics');
+            let metricsHtml = '';
+            metricsHtml += createKeyMetric('BTC Holdings', numberFormatter(latestData.holdings) + ' BTC');
+            metricsHtml += createKeyMetric('Market Value (AUM)', compactNumberFormatter(latestData.aum, true));
+            metricsHtml += createKeyMetric('Est. Cost Basis', compactNumberFormatter(costBasis, true));
+            metricsHtml += createKeyMetric('Est. Avg. Price', numberFormatter(avgPurchasePrice, true));
+            
+            const gainColor = unrealizedGain >= 0 ? 'text-green-600' : 'text-red-600';
+            const gainPrefix = unrealizedGain >= 0 ? '+' : '';
+            metricsHtml += createKeyMetric(
+                'Unrealized Gain', 
+                `<span class="${gainColor}">${gainPrefix}${compactNumberFormatter(unrealizedGain, true)}</span>`
+            );
+            
+            metricsContainer.innerHTML = metricsHtml;
+            const dateText = latestData.date || 'N/A';
+            document.getElementById('lastUpdated').textContent = `Data last successfully updated: ${dateText}`;
+        }
+
+        function populateDataTable() {
+            const tableBody = document.getElementById('dataTableBody');
+            let tableHtml = '';
+            [...fundData].reverse().forEach(d => {
+                tableHtml += `
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${d.date}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">${numberFormatter(d.price, true)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">${numberFormatter(d.holdings)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right ${d.btcFlow >= 0 ? 'text-green-600' : 'text-red-600'}">${numberFormatter(d.btcFlow)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">${compactNumberFormatter(d.aum, true)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right ${d.usdFlow >= 0 ? 'text-green-600' : 'text-red-600'}">${compactNumberFormatter(d.usdFlow, true)}</td>
+                    </tr>
+                `;
+            });
+            tableBody.innerHTML = tableHtml;
+        }
+
+        const chartTooltip = {
+            callbacks: {
+                label: function(context) {
+                    let label = context.dataset.label || '';
+                    if (label) {
+                        label += ': ';
+                    }
+                    if (context.parsed.y !== null) {
+                        const isCurrency = context.dataset.yAxisID === 'yUsd';
+                        label += compactNumberFormatter(context.parsed.y, isCurrency);
+                    }
+                    return label;
+                }
+            }
+        };
+
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                tooltip: chartTooltip
+            },
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    }
+                },
+                y: {
+                    beginAtZero: false,
+                    ticks: {
+                        callback: (value) => compactNumberFormatter(value)
+                    }
+                }
+            }
+        };
+
+        function initCharts() {
+            const labels = fundData.map(d => d.date);
+
+            const holdingsCtx = document.getElementById('holdingsChart').getContext('2d');
+            charts.holdings = new Chart(holdingsCtx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'BTC Holdings',
+                        data: fundData.map(d => d.holdings),
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: true,
+                        tension: 0.1,
+                        yAxisID: 'y'
+                    }]
+                },
+                options: { ...chartOptions }
+            });
+
+            const aumCtx = document.getElementById('aumChart').getContext('2d');
+            charts.aum = new Chart(aumCtx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'AUM (USD)',
+                        data: fundData.map(d => d.aum),
+                        borderColor: 'rgb(22, 163, 74)',
+                        backgroundColor: 'rgba(22, 163, 74, 0.1)',
+                        fill: true,
+                        tension: 0.1,
+                        yAxisID: 'yUsd'
+                    }]
+                },
+                options: { 
+                    ...chartOptions,
+                    scales: {
+                        ...chartOptions.scales,
+                        yUsd: {
+                            beginAtZero: false,
+                            ticks: {
+                                callback: (value) => compactNumberFormatter(value, true)
+                            }
+                        }
+                    }
+                }
+            });
+
+            const flowCtx = document.getElementById('flowChart').getContext('2d');
+            charts.flow = new Chart(flowCtx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'BTC Flow',
+                            data: fundData.map(d => d.btcFlow),
+                            backgroundColor: fundData.map(d => d.btcFlow >= 0 ? 'rgba(22, 163, 74, 0.7)' : 'rgba(220, 38, 38, 0.7)'),
+                            borderColor: fundData.map(d => d.btcFlow >= 0 ? 'rgb(22, 163, 74)' : 'rgb(220, 38, 38)'),
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: { ...chartOptions }
+            });
+        }
+        
+        function updateFlowChart(type) {
+            if (type === currentFlowType) return;
+            currentFlowType = type;
+            
+            const btnBtc = document.getElementById('flowToggleBTC');
+            const btnUsd = document.getElementById('flowToggleUSD');
+            const isBtc = type === 'btc';
+
+            btnBtc.classList.toggle('nav-btn-active', isBtc);
+            btnBtc.classList.toggle('nav-btn-inactive', !isBtc);
+            btnUsd.classList.toggle('nav-btn-active', !isBtc);
+            btnUsd.classList.toggle('nav-btn-inactive', isBtc);
+
+            const data = isBtc ? fundData.map(d => d.btcFlow) : fundData.map(d => d.usdFlow);
+            const label = isBtc ? 'BTC Flow' : 'Fund Flow (USD)';
+            
+            charts.flow.data.datasets[0].data = data;
+            charts.flow.data.datasets[0].label = label;
+            charts.flow.data.datasets[0].backgroundColor = data.map(d => d >= 0 ? 'rgba(22, 163, 74, 0.7)' : 'rgba(220, 38, 38, 0.7)');
+            charts.flow.data.datasets[0].borderColor = data.map(d => d >= 0 ? 'rgb(22, 163, 74)' : 'rgb(220, 38, 38)');
+            
+            const isCurrency = !isBtc;
+            charts.flow.options.scales.y = {
+                beginAtZero: false,
+                ticks: {
+                    callback: (value) => compactNumberFormatter(value, isCurrency)
+                }
+            };
+            
+            charts.flow.update();
+        }
+
+        const navButtons = document.querySelectorAll('nav .nav-btn');
+        const chartWrappers = document.querySelectorAll('.chart-container-wrapper');
+        const chartSection = document.getElementById('chartSection');
+        const tableSection = document.getElementById('tableSection');
+        const chartIntro = document.getElementById('chartIntro');
+        const tableIntro = document.getElementById('tableIntro');
+
+        const sectionIntros = {
+            holdings: "This chart shows the total accumulation of Bitcoin (BTC) held by the IBIT ETF over time. It provides a clear visual representation of the fund's growth in underlying assets since inception.",
+            aum: "This chart tracks the total Assets Under Management (AUM) valued in USD. AUM is influenced by both new fund inflows/outflows and changes in the market price of Bitcoin.",
+            flow: "This bar chart illustrates the daily net flow of assets into or out of the fund. Green bars represent net inflows (new money coming in), while red bars represent net outflows (money leaving the fund). You can toggle between BTC and USD flows.",
+            table: "This table provides the raw daily data for the fund, including Bitcoin price, total holdings, daily flows (in both BTC and USD), and total AUM. It allows for a granular look at the fund's activity."
+        };
+
+        function showSection(target) {
+            navButtons.forEach(btn => {
+                const isActive = btn.dataset.chart === target;
+                btn.classList.toggle('nav-btn-active', isActive);
+                btn.classList.toggle('nav-btn-inactive', !isActive);
+            });
+
+            if (target === 'table') {
+                chartSection.classList.add('hidden');
+                tableSection.classList.remove('hidden');
+                tableIntro.textContent = sectionIntros.table;
+            } else {
+                chartSection.classList.remove('hidden');
+                tableSection.classList.add('hidden');
+                chartIntro.textContent = sectionIntros[target] || '';
+
+                chartWrappers.forEach(wrapper => {
+                    wrapper.classList.toggle('hidden', !wrapper.id.startsWith(target));
+                });
+            }
+            currentChart = target;
+        }
+
+        navButtons.forEach(btn => {
+            btn.addEventListener('click', () => showSection(btn.dataset.chart));
+        });
+
+        document.getElementById('flowToggleBTC').addEventListener('click', () => updateFlowChart('btc'));
+        document.getElementById('flowToggleUSD').addEventListener('click', () => updateFlowChart('usd'));
+
+        document.addEventListener('DOMContentLoaded', () => {
+            populateKeyMetrics();
+            populateDataTable();
+            initCharts();
+            showSection('holdings');
+        });
+
+    </script>
+</body>
+</html>
